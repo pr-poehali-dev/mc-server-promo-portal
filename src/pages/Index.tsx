@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -77,19 +77,90 @@ const mockServers: Server[] = [
 ];
 
 export default function Index() {
-  const [servers, setServers] = useState<Server[]>(mockServers);
+  const [servers, setServers] = useState<Server[]>([]);
   const [activeTab, setActiveTab] = useState('catalog');
   const [searchQuery, setSearchQuery] = useState('');
   const [filterMode, setFilterMode] = useState('all');
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isProfileDialogOpen, setIsProfileDialogOpen] = useState(false);
+  const [newServer, setNewServer] = useState({ name: '', ip: '', description: '', mode: '', version: '', maxPlayers: '100' });
   const { toast } = useToast();
+
+  useEffect(() => {
+    const stored = localStorage.getItem('minecraft-servers');
+    if (stored) {
+      setServers(JSON.parse(stored));
+    } else {
+      setServers(mockServers);
+      localStorage.setItem('minecraft-servers', JSON.stringify(mockServers));
+    }
+  }, []);
+
+  const saveServers = (updatedServers: Server[]) => {
+    setServers(updatedServers);
+    localStorage.setItem('minecraft-servers', JSON.stringify(updatedServers));
+  };
 
   const copyToClipboard = (ip: string) => {
     navigator.clipboard.writeText(ip);
     toast({
       title: "IP скопирован!",
       description: `${ip} добавлен в буфер обмена`,
+      duration: 2000,
+    });
+  };
+
+  const handleAddServer = () => {
+    if (!newServer.name || !newServer.ip || !newServer.mode || !newServer.version) {
+      toast({
+        title: "Ошибка",
+        description: "Заполните все обязательные поля",
+        variant: "destructive",
+        duration: 3000,
+      });
+      return;
+    }
+
+    const serverToAdd: Server = {
+      id: Date.now(),
+      name: newServer.name,
+      ip: newServer.ip,
+      description: newServer.description,
+      mode: newServer.mode,
+      version: newServer.version,
+      players: Math.floor(Math.random() * 100),
+      maxPlayers: parseInt(newServer.maxPlayers) || 100,
+      rating: 0,
+      votes: 0,
+      owner: 'Игрок123'
+    };
+
+    const updatedServers = [...servers, serverToAdd];
+    saveServers(updatedServers);
+    
+    setNewServer({ name: '', ip: '', description: '', mode: '', version: '', maxPlayers: '100' });
+    setIsAddDialogOpen(false);
+    
+    toast({
+      title: "Сервер добавлен!",
+      description: `${serverToAdd.name} успешно опубликован`,
+      duration: 3000,
+    });
+  };
+
+  const handleVote = (serverId: number, rating: number) => {
+    const updatedServers = servers.map(server => {
+      if (server.id === serverId) {
+        const newVotes = server.votes + 1;
+        const newRating = ((server.rating * server.votes) + rating) / newVotes;
+        return { ...server, rating: Math.round(newRating * 10) / 10, votes: newVotes };
+      }
+      return server;
+    });
+    saveServers(updatedServers);
+    toast({
+      title: "Голос учтён!",
+      description: "Спасибо за оценку сервера",
       duration: 2000,
     });
   };
@@ -134,38 +205,59 @@ export default function Index() {
                 <div className="grid gap-4 py-4">
                   <div className="grid gap-2">
                     <Label htmlFor="server-name">Название сервера</Label>
-                    <Input id="server-name" placeholder="Мой крутой сервер" />
+                    <Input 
+                      id="server-name" 
+                      placeholder="Мой крутой сервер" 
+                      value={newServer.name}
+                      onChange={(e) => setNewServer({...newServer, name: e.target.value})}
+                    />
                   </div>
                   <div className="grid gap-2">
                     <Label htmlFor="server-ip">IP адрес</Label>
-                    <Input id="server-ip" placeholder="server.example.com:25565" />
+                    <Input 
+                      id="server-ip" 
+                      placeholder="server.example.com:25565" 
+                      value={newServer.ip}
+                      onChange={(e) => setNewServer({...newServer, ip: e.target.value})}
+                    />
                   </div>
                   <div className="grid gap-2">
                     <Label htmlFor="server-mode">Режим игры</Label>
-                    <Select>
+                    <Select value={newServer.mode} onValueChange={(value) => setNewServer({...newServer, mode: value})}>
                       <SelectTrigger id="server-mode">
                         <SelectValue placeholder="Выберите режим" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="survival">Survival</SelectItem>
-                        <SelectItem value="skyblock">SkyBlock</SelectItem>
-                        <SelectItem value="pvp">PvP</SelectItem>
-                        <SelectItem value="minigames">MiniGames</SelectItem>
-                        <SelectItem value="creative">Creative</SelectItem>
+                        <SelectItem value="Survival">Survival</SelectItem>
+                        <SelectItem value="SkyBlock">SkyBlock</SelectItem>
+                        <SelectItem value="PvP">PvP</SelectItem>
+                        <SelectItem value="MiniGames">MiniGames</SelectItem>
+                        <SelectItem value="Creative">Creative</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
                   <div className="grid gap-2">
                     <Label htmlFor="server-version">Версия</Label>
-                    <Input id="server-version" placeholder="1.20.1" />
+                    <Input 
+                      id="server-version" 
+                      placeholder="1.20.1" 
+                      value={newServer.version}
+                      onChange={(e) => setNewServer({...newServer, version: e.target.value})}
+                    />
                   </div>
                   <div className="grid gap-2">
                     <Label htmlFor="server-description">Описание</Label>
-                    <Textarea id="server-description" placeholder="Расскажите о вашем сервере..." rows={3} />
+                    <Textarea 
+                      id="server-description" 
+                      placeholder="Расскажите о вашем сервере..." 
+                      rows={3}
+                      value={newServer.description}
+                      onChange={(e) => setNewServer({...newServer, description: e.target.value})}
+                    />
                   </div>
                 </div>
                 <DialogFooter>
-                  <Button type="submit" className="pixel-corners">Опубликовать</Button>
+                  <Button onClick={handleAddServer} className="pixel-corners">Опубликовать</Button>
                 </DialogFooter>
               </DialogContent>
             </Dialog>
@@ -195,11 +287,15 @@ export default function Index() {
                   </div>
                   <div className="grid gap-2">
                     <Label>Ваши серверы</Label>
-                    <div className="text-sm text-muted-foreground">У вас пока нет добавленных серверов</div>
+                    <div className="text-sm text-muted-foreground">
+                      {servers.filter(s => s.owner === 'Игрок123').length} серверов
+                    </div>
                   </div>
                   <div className="grid gap-2">
-                    <Label>Избранное</Label>
-                    <div className="text-sm text-muted-foreground">0 серверов в избранном</div>
+                    <Label>Статистика</Label>
+                    <div className="text-sm text-muted-foreground">
+                      Всего серверов на платформе: {servers.length}
+                    </div>
                   </div>
                 </div>
               </DialogContent>
@@ -299,8 +395,13 @@ export default function Index() {
                       <Icon name="Copy" size={16} />
                       Копировать IP
                     </Button>
-                    <Button variant="outline" size="icon" className="pixel-corners">
-                      <Icon name="Heart" size={18} />
+                    <Button 
+                      variant="outline" 
+                      size="icon" 
+                      className="pixel-corners"
+                      onClick={() => handleVote(server.id, 5)}
+                    >
+                      <Icon name="Star" size={18} />
                     </Button>
                   </CardFooter>
                 </Card>
